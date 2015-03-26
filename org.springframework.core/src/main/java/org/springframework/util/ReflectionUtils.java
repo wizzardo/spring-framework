@@ -26,6 +26,8 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
@@ -45,6 +47,9 @@ import java.util.regex.Pattern;
 public abstract class ReflectionUtils {
 
 	private static final Pattern CGLIB_RENAMED_METHOD_PATTERN = Pattern.compile("CGLIB\\$(.+)\\$\\d+");
+    private static ConcurrentHashMap<Class, Field[]> declaredFields = new ConcurrentHashMap<Class, Field[]>();
+    private static ConcurrentHashMap<Class, Method[]> declaredMethods = new ConcurrentHashMap<Class, Method[]>();
+    private static ConcurrentHashMap<Class, Method[]> methods = new ConcurrentHashMap<Class, Method[]>();
 
 	/**
 	 * Attempt to find a {@link Field field} on the supplied {@link Class} with the
@@ -71,7 +76,7 @@ public abstract class ReflectionUtils {
 		Assert.isTrue(name != null || type != null, "Either name or type of the field must be specified");
 		Class<?> searchType = clazz;
 		while (!Object.class.equals(searchType) && searchType != null) {
-			Field[] fields = searchType.getDeclaredFields();
+			Field[] fields = getDeclaredFields(searchType);
 			for (Field field : fields) {
 				if ((name == null || name.equals(field.getName())) && (type == null || type.equals(field.getType()))) {
 					return field;
@@ -151,7 +156,7 @@ public abstract class ReflectionUtils {
 		Assert.notNull(name, "Method name must not be null");
 		Class<?> searchType = clazz;
 		while (searchType != null) {
-			Method[] methods = (searchType.isInterface() ? searchType.getMethods() : searchType.getDeclaredMethods());
+			Method[] methods = (searchType.isInterface() ? getMethods(searchType) : getDeclaredMethods(searchType));
 			for (Method method : methods) {
 				if (name.equals(method.getName())
 						&& (paramTypes == null || Arrays.equals(paramTypes, method.getParameterTypes()))) {
@@ -464,7 +469,7 @@ public abstract class ReflectionUtils {
 			throws IllegalArgumentException {
 
 		// Keep backing up the inheritance hierarchy.
-		Method[] methods = clazz.getDeclaredMethods();
+		Method[] methods = getDeclaredMethods(clazz);
 		for (Method method : methods) {
 			if (mf != null && !mf.matches(method)) {
 				continue;
@@ -560,7 +565,7 @@ public abstract class ReflectionUtils {
 		// Keep backing up the inheritance hierarchy.
 		Class<?> targetClass = clazz;
 		do {
-			Field[] fields = targetClass.getDeclaredFields();
+			Field[] fields = getDeclaredFields(targetClass);
 			for (Field field : fields) {
 				// Skip static and final fields.
 				if (ff != null && !ff.matches(field)) {
@@ -691,4 +696,36 @@ public abstract class ReflectionUtils {
 		}
 	};
 
+    public static Field[] getDeclaredFields(Class clazz) {
+//        return clazz.getDeclaredFields();
+        Field[] arr = declaredFields.get(clazz);
+        if (arr == null)
+            arr = cache(declaredFields, clazz, clazz.getDeclaredFields());
+        return arr;
+    }
+
+    public static Method[] getDeclaredMethods(Class clazz) {
+//        return clazz.getDeclaredMethods();
+        Method[] arr = declaredMethods.get(clazz);
+        if (arr == null)
+            arr = cache(declaredMethods, clazz, clazz.getDeclaredMethods());
+
+        return arr;
+    }
+
+    public static Method[] getMethods(Class clazz) {
+//        return clazz.getMethods();
+        Method[] arr = methods.get(clazz);
+        if (arr == null)
+            arr = cache(methods, clazz, clazz.getMethods());
+
+        return arr;
+    }
+
+    private static <T> T[] cache(ConcurrentHashMap<Class, T[]> map, Class clazz, T[] array) {
+        T[] old = map.putIfAbsent(clazz, array);
+        if (old != null)
+            array = old;
+        return array;
+    }
 }

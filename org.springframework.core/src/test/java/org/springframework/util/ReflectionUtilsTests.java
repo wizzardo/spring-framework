@@ -71,7 +71,9 @@ public class ReflectionUtilsTests {
 		final TestBeanSubclassWithNewField testBean = new TestBeanSubclassWithNewField();
 		final Field field = ReflectionUtils.findField(TestBeanSubclassWithNewField.class, "name", String.class);
 
-		ReflectionUtils.makeAccessible(field);
+        assertTrue(!field.isAccessible());
+        ReflectionUtils.makeAccessible(field);
+        assertTrue(field.isAccessible());
 
 		ReflectionUtils.setField(field, testBean, "FooBar");
 		assertNotNull(testBean.getName());
@@ -79,6 +81,9 @@ public class ReflectionUtilsTests {
 
 		ReflectionUtils.setField(field, testBean, null);
 		assertNull(testBean.getName());
+
+        field.setAccessible(false);
+        assertTrue(!field.isAccessible());
 	}
 
 	@Test(expected = IllegalStateException.class)
