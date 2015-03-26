@@ -100,6 +100,7 @@ class AntPathStringMatcher {
 		if (matcher.matches()) {
 			if (uriTemplateVariables != null) {
 				// SPR-8455
+                if(variableNames.size() != matcher.groupCount())
 				Assert.isTrue(variableNames.size() == matcher.groupCount(),
 						"The number of capturing groups in the pattern segment " + pattern +
 						" does not match the number of URI template variables it defines, which can occur if " +
