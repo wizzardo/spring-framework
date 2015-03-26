@@ -722,8 +722,8 @@ public abstract class ReflectionUtils {
         return arr;
     }
 
-    private static <T> T[] cache(ConcurrentHashMap<Class, T[]> map, Class clazz, T[] array) {
-        T[] old = map.putIfAbsent(clazz, array);
+    public static <K, T> T[] cache(ConcurrentHashMap<K, T[]> map, K key, T[] array) {
+        T[] old = map.putIfAbsent(key, array);
         if (old != null)
             array = old;
         return array;

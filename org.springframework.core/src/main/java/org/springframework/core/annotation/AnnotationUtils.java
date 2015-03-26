@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.core.BridgeMethodResolver;
 import org.springframework.util.Assert;
+import org.springframework.util.ReflectionUtils;
 
 /**
  * General utility methods for working with annotations, handling bridge methods (which the compiler
@@ -54,6 +55,8 @@ public abstract class AnnotationUtils {
 	static final String VALUE = "value";
 
     private static ConcurrentHashMap<Class, Annotation[]> classAnnotations = new ConcurrentHashMap<Class, Annotation[]>();
+    private static ConcurrentHashMap<Class, Class[]> classInterfaces = new ConcurrentHashMap<Class, Class[]>();
+    private static ConcurrentHashMap<Method, Class[]> methodParameterTypes = new ConcurrentHashMap<Method, Class[]>();
 	private static final Map<Class<?>, Boolean> annotatedInterfaceCache = new WeakHashMap<Class<?>, Boolean>();
 
 
@@ -124,7 +127,7 @@ public abstract class AnnotationUtils {
 		A annotation = getAnnotation(method, annotationType);
 		Class<?> cl = method.getDeclaringClass();
 		if (annotation == null) {
-			annotation = searchOnInterfaces(method, annotationType, cl.getInterfaces());
+			annotation = searchOnInterfaces(method, annotationType, getInterfaces(cl));
 		}
 		while (annotation == null) {
 			cl = cl.getSuperclass();
@@ -132,10 +135,10 @@ public abstract class AnnotationUtils {
 				break;
 			}
 			try {
-				Method equivalentMethod = cl.getDeclaredMethod(method.getName(), method.getParameterTypes());
+				Method equivalentMethod = cl.getDeclaredMethod(method.getName(), getMethodParameterTypes(method));
 				annotation = getAnnotation(equivalentMethod, annotationType);
 				if (annotation == null) {
-					annotation = searchOnInterfaces(method, annotationType, cl.getInterfaces());
+					annotation = searchOnInterfaces(method, annotationType, getInterfaces(cl));
 				}
 			}
 			catch (NoSuchMethodException ex) {
@@ -150,7 +153,7 @@ public abstract class AnnotationUtils {
 		for (Class<?> iface : ifcs) {
 			if (isInterfaceWithAnnotatedMethods(iface)) {
 				try {
-					Method equivalentMethod = iface.getMethod(method.getName(), method.getParameterTypes());
+					Method equivalentMethod = iface.getMethod(method.getName(), getMethodParameterTypes(method));
 					annotation = getAnnotation(equivalentMethod, annotationType);
 				}
 				catch (NoSuchMethodException ex) {
@@ -203,7 +206,7 @@ public abstract class AnnotationUtils {
 		if (annotation != null) {
 			return annotation;
 		}
-		for (Class<?> ifc : clazz.getInterfaces()) {
+		for (Class<?> ifc : getInterfaces(clazz)) {
 			annotation = findAnnotation(ifc, annotationType);
 			if (annotation != null) {
 				return annotation;
@@ -355,7 +358,7 @@ public abstract class AnnotationUtils {
 		AnnotationAttributes attrs = new AnnotationAttributes();
 		Method[] methods = annotation.annotationType().getDeclaredMethods();
 		for (Method method : methods) {
-			if (method.getParameterTypes().length == 0 && method.getReturnType() != void.class) {
+			if (getMethodParameterTypes(method).length == 0 && method.getReturnType() != void.class) {
 				try {
 					Object value = method.invoke(annotation);
 					if (classValuesAsString) {
@@ -477,12 +480,24 @@ public abstract class AnnotationUtils {
     public static Annotation[] getAnnotations(Class clazz) {
 //        return clazz.getAnnotations();
         Annotation[] arr = classAnnotations.get(clazz);
-        if (arr == null) {
-            arr = clazz.getAnnotations();
-            Annotation[] old = classAnnotations.putIfAbsent(clazz, arr);
-            if (old != null)
-                arr = old;
-        }
+        if (arr == null)
+            arr = ReflectionUtils.cache(classAnnotations, clazz, clazz.getAnnotations());
+        return arr;
+    }
+
+    public static Class<?>[] getInterfaces(Class clazz) {
+//        return clazz.getInterfaces();
+        Class[] arr = classInterfaces.get(clazz);
+        if (arr == null)
+            arr = ReflectionUtils.cache(classInterfaces, clazz, clazz.getInterfaces());
+        return arr;
+    }
+
+    public static Class<?>[] getMethodParameterTypes(Method method) {
+//        return clazz.getInterfaces();
+        Class[] arr = methodParameterTypes.get(method);
+        if (arr == null)
+            arr = ReflectionUtils.cache(methodParameterTypes, method, method.getParameterTypes());
         return arr;
     }
 }
