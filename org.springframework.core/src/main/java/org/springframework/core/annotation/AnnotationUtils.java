@@ -22,6 +22,7 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.core.BridgeMethodResolver;
 import org.springframework.util.Assert;
@@ -52,6 +53,7 @@ public abstract class AnnotationUtils {
 	/** The attribute name for annotations with a single element */
 	static final String VALUE = "value";
 
+    private static ConcurrentHashMap<Class, Annotation[]> classAnnotations = new ConcurrentHashMap<Class, Annotation[]>();
 	private static final Map<Class<?>, Boolean> annotatedInterfaceCache = new WeakHashMap<Class<?>, Boolean>();
 
 
@@ -208,7 +210,7 @@ public abstract class AnnotationUtils {
 			}
 		}
 		if (!Annotation.class.isAssignableFrom(clazz)) {
-			for (Annotation ann : clazz.getAnnotations()) {
+			for (Annotation ann : getAnnotations(clazz)) {
 				annotation = findAnnotation(ann.annotationType(), annotationType);
 				if (annotation != null) {
 					return annotation;
@@ -472,4 +474,15 @@ public abstract class AnnotationUtils {
 		}
 	}
 
+    public static Annotation[] getAnnotations(Class clazz) {
+//        return clazz.getAnnotations();
+        Annotation[] arr = classAnnotations.get(clazz);
+        if (arr == null) {
+            arr = clazz.getAnnotations();
+            Annotation[] old = classAnnotations.putIfAbsent(clazz, arr);
+            if (old != null)
+                arr = old;
+        }
+        return arr;
+    }
 }
