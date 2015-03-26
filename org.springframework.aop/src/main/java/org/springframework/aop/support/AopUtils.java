@@ -220,7 +220,7 @@ public abstract class AopUtils {
 		Set<Class> classes = new HashSet<Class>(ClassUtils.getAllInterfacesForClassAsSet(targetClass));
 		classes.add(targetClass);
 		for (Class<?> clazz : classes) {
-			Method[] methods = clazz.getMethods();
+            Method[] methods = ReflectionUtils.getMethods(clazz);
 			for (Method method : methods) {
 				if ((introductionAwareMethodMatcher != null &&
 						introductionAwareMethodMatcher.matches(method, targetClass, hasIntroductions)) ||
