@@ -16,6 +16,10 @@
 
 package org.springframework.core.annotation;
 
+import org.springframework.core.BridgeMethodResolver;
+import org.springframework.util.Assert;
+import org.springframework.util.ReflectionUtils;
+
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
@@ -23,10 +27,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
-
-import org.springframework.core.BridgeMethodResolver;
-import org.springframework.util.Assert;
-import org.springframework.util.ReflectionUtils;
 
 /**
  * General utility methods for working with annotations, handling bridge methods (which the compiler
@@ -55,10 +55,18 @@ public abstract class AnnotationUtils {
 	static final String VALUE = "value";
 
     private static ConcurrentHashMap<Class, Annotation[]> classAnnotations = new ConcurrentHashMap<Class, Annotation[]>();
+    private static ConcurrentHashMap<Class, ConcurrentHashMap<Class, AnnotationHolder>> annotationCache = new ConcurrentHashMap<Class, ConcurrentHashMap<Class, AnnotationHolder>>();
     private static ConcurrentHashMap<Class, Class[]> classInterfaces = new ConcurrentHashMap<Class, Class[]>();
     private static ConcurrentHashMap<Method, Class[]> methodParameterTypes = new ConcurrentHashMap<Method, Class[]>();
 	private static final Map<Class<?>, Boolean> annotatedInterfaceCache = new WeakHashMap<Class<?>, Boolean>();
 
+	private static class AnnotationHolder<A> {
+		final A annotation;
+
+		private AnnotationHolder(A annotation) {
+			this.annotation = annotation;
+		}
+	}
 
 	/**
 	 * Get a single {@link Annotation} of {@code annotationType} from the supplied
@@ -201,6 +209,25 @@ public abstract class AnnotationUtils {
 	 * @return the annotation found, or <code>null</code> if none found
 	 */
 	public static <A extends Annotation> A findAnnotation(Class<?> clazz, Class<A> annotationType) {
+		Assert.notNull(clazz, "Class must not be null");
+		ConcurrentHashMap<Class, AnnotationHolder> cache = annotationCache.get(clazz);
+		if (cache == null) {
+			cache = new ConcurrentHashMap<Class, AnnotationHolder>();
+			ConcurrentHashMap<Class, AnnotationHolder> old = annotationCache.putIfAbsent(clazz, cache);
+			if (old != null)
+				cache = old;
+		}
+
+		AnnotationHolder<A> holder = cache.get(annotationType);
+		if (holder == null) {
+			holder = new AnnotationHolder(doFindAnnotation(clazz, annotationType));
+			cache.putIfAbsent(annotationType, holder);
+		}
+
+		return holder.annotation;
+	}
+
+	private static <A extends Annotation> A doFindAnnotation(Class<?> clazz, Class<A> annotationType) {
 		Assert.notNull(clazz, "Class must not be null");
 		A annotation = clazz.getAnnotation(annotationType);
 		if (annotation != null) {
