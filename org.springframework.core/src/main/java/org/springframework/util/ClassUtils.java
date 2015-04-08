@@ -17,21 +17,10 @@
 package org.springframework.util;
 
 import java.beans.Introspector;
-import java.lang.reflect.Array;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.Proxy;
+import java.lang.reflect.*;
 import java.security.AccessControlException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Miscellaneous class utility methods. Mainly for internal use within the
@@ -49,6 +38,8 @@ import java.util.Set;
  */
 @SuppressWarnings("unchecked")
 public abstract class ClassUtils {
+
+	private static ConcurrentHashMap<Class, ConcurrentHashMap<Method, Method>> mostSpecificMethods = new ConcurrentHashMap<Class, ConcurrentHashMap<Method, Method>>();
 
 	/** Suffix for array class names: "[]" */
 	public static final String ARRAY_SUFFIX = "[]";
@@ -734,6 +725,24 @@ public abstract class ClassUtils {
 	 * <code>targetClass</code> doesn't implement it or is <code>null</code>
 	 */
 	public static Method getMostSpecificMethod(Method method, Class<?> targetClass) {
+		ConcurrentHashMap<Method, Method> cache = mostSpecificMethods.get(targetClass);
+		if (cache == null) {
+			cache = new ConcurrentHashMap<Method, Method>();
+			ConcurrentHashMap<Method, Method> old = mostSpecificMethods.putIfAbsent(targetClass, cache);
+			if (old != null)
+				cache = old;
+		}
+
+		Method m = cache.get(method);
+		if (m == null) {
+			m = doGetMostSpecificMethod(method, targetClass);
+			cache.putIfAbsent(method, m);
+		}
+
+		return m;
+	}
+
+	private static Method doGetMostSpecificMethod(Method method, Class<?> targetClass) {
 		if (method != null && isOverridable(method, targetClass) &&
 				targetClass != null && !targetClass.equals(method.getDeclaringClass())) {
 			try {
@@ -757,7 +766,6 @@ public abstract class ClassUtils {
 		}
 		return method;
 	}
-
 	/**
 	 * Determine whether the given method is overridable in the given target class.
 	 * @param method the method to check
