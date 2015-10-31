@@ -67,6 +67,7 @@ public abstract class AnnotationUtils {
 	/** The attribute name for annotations with a single element */
 	public static final String VALUE = "value";
 
+	private static Map<Class, Annotation[]> classDeclaredAnnotations = new ConcurrentReferenceHashMap<Class, Annotation[]>(256);
 
 	private static final Map<AnnotationCacheKey, Annotation> findAnnotationCache =
 			new ConcurrentReferenceHashMap<AnnotationCacheKey, Annotation>(256);
@@ -357,7 +358,7 @@ public abstract class AnnotationUtils {
 		Assert.notNull(clazz, "Class must not be null");
 
 		try {
-			Annotation[] anns = clazz.getDeclaredAnnotations();
+			Annotation[] anns = getDeclaredAnnotations(clazz);
 			for (Annotation ann : anns) {
 				if (ann.annotationType().equals(annotationType)) {
 					return (A) ann;
@@ -820,6 +821,17 @@ public abstract class AnnotationUtils {
 				return Collections.emptyList();
 			}
 		}
+	}
+
+	public static Annotation[] getDeclaredAnnotations(Class clazz) {
+		Annotation[] arr = classDeclaredAnnotations.get(clazz);
+		if (arr == null) {
+			arr = clazz.getDeclaredAnnotations();
+			Annotation[] old = classDeclaredAnnotations.putIfAbsent(clazz, arr);
+			if (old != null)
+				arr = old;
+		}
+		return arr;
 	}
 
 }
