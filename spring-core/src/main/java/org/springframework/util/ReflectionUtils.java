@@ -56,6 +56,8 @@ public abstract class ReflectionUtils {
 	private static final Map<Class<?>, Method[]> declaredMethodsCache =
 			new ConcurrentReferenceHashMap<Class<?>, Method[]>(256);
 
+	private static ConcurrentReferenceHashMap<Class, Field[]> declaredFields = new ConcurrentReferenceHashMap<Class, Field[]>(256);
+	private static ConcurrentReferenceHashMap<Class, Method[]> methods = new ConcurrentReferenceHashMap<Class, Method[]>(256);
 
 	/**
 	 * Attempt to find a {@link Field field} on the supplied {@link Class} with the
@@ -82,7 +84,7 @@ public abstract class ReflectionUtils {
 		Assert.isTrue(name != null || type != null, "Either name or type of the field must be specified");
 		Class<?> searchType = clazz;
 		while (!Object.class.equals(searchType) && searchType != null) {
-			Field[] fields = searchType.getDeclaredFields();
+			Field[] fields = getDeclaredFields(searchType);
 			for (Field field : fields) {
 				if ((name == null || name.equals(field.getName())) && (type == null || type.equals(field.getType()))) {
 					return field;
@@ -162,7 +164,7 @@ public abstract class ReflectionUtils {
 		Assert.notNull(name, "Method name must not be null");
 		Class<?> searchType = clazz;
 		while (searchType != null) {
-			Method[] methods = (searchType.isInterface() ? searchType.getMethods() : getDeclaredMethods(searchType));
+			Method[] methods = (searchType.isInterface() ? getMethods(searchType) : getDeclaredMethods(searchType));
 			for (Method method : methods) {
 				if (name.equals(method.getName()) &&
 						(paramTypes == null || Arrays.equals(paramTypes, method.getParameterTypes()))) {
@@ -595,7 +597,7 @@ public abstract class ReflectionUtils {
 		// Keep backing up the inheritance hierarchy.
 		Class<?> targetClass = clazz;
 		do {
-			Field[] fields = targetClass.getDeclaredFields();
+			Field[] fields = getDeclaredFields(targetClass);
 			for (Field field : fields) {
 				if (ff != null && !ff.matches(field)) {
 					continue;
@@ -727,4 +729,27 @@ public abstract class ReflectionUtils {
 		}
 	};
 
+	public static Field[] getDeclaredFields(Class clazz) {
+		//        return clazz.getDeclaredFields();
+		Field[] arr = declaredFields.get(clazz);
+		if (arr == null)
+			arr = cache(declaredFields, clazz, clazz.getDeclaredFields());
+		return arr;
+	}
+
+	public static Method[] getMethods(Class clazz) {
+		//        return clazz.getMethods();
+		Method[] arr = methods.get(clazz);
+		if (arr == null)
+			arr = cache(methods, clazz, clazz.getMethods());
+
+		return arr;
+	}
+
+	private static <T> T[] cache(ConcurrentReferenceHashMap<Class, T[]> map, Class clazz, T[] array) {
+		T[] old = map.putIfAbsent(clazz, array);
+		if (old != null)
+			array = old;
+		return array;
+	}
 }

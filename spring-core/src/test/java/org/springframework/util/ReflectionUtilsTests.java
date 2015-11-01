@@ -69,7 +69,9 @@ public class ReflectionUtilsTests {
 		TestObjectSubclassWithNewField testBean = new TestObjectSubclassWithNewField();
 		Field field = ReflectionUtils.findField(TestObjectSubclassWithNewField.class, "name", String.class);
 
+		assertTrue(!field.isAccessible());
 		ReflectionUtils.makeAccessible(field);
+		assertTrue(field.isAccessible());
 
 		ReflectionUtils.setField(field, testBean, "FooBar");
 		assertNotNull(testBean.getName());
@@ -77,6 +79,9 @@ public class ReflectionUtilsTests {
 
 		ReflectionUtils.setField(field, testBean, null);
 		assertNull(testBean.getName());
+
+		field.setAccessible(false);
+		assertTrue(!field.isAccessible());
 	}
 
 	@Test
