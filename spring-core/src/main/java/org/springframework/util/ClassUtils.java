@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Miscellaneous class utility methods.
@@ -45,6 +46,8 @@ import java.util.Set;
  * @see ReflectionUtils
  */
 public abstract class ClassUtils {
+
+	private static ConcurrentHashMap<Class, ConcurrentHashMap<Method, Method>> mostSpecificMethods = new ConcurrentHashMap<Class, ConcurrentHashMap<Method, Method>>();
 
 	/** Suffix for array class names: "[]" */
 	public static final String ARRAY_SUFFIX = "[]";
@@ -760,6 +763,24 @@ public abstract class ClassUtils {
 	 * {@code targetClass} doesn't implement it or is {@code null}
 	 */
 	public static Method getMostSpecificMethod(Method method, Class<?> targetClass) {
+		ConcurrentHashMap<Method, Method> cache = mostSpecificMethods.get(targetClass);
+		if (cache == null) {
+			cache = new ConcurrentHashMap<Method, Method>();
+			ConcurrentHashMap<Method, Method> old = mostSpecificMethods.putIfAbsent(targetClass, cache);
+			if (old != null)
+				cache = old;
+		}
+
+		Method m = cache.get(method);
+		if (m == null) {
+			m = doGetMostSpecificMethod(method, targetClass);
+			cache.putIfAbsent(method, m);
+		}
+
+		return m;
+	}
+
+	private static Method doGetMostSpecificMethod(Method method, Class<?> targetClass) {
 		if (method != null && isOverridable(method, targetClass) &&
 				targetClass != null && !targetClass.equals(method.getDeclaringClass())) {
 			try {
