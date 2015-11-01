@@ -26,6 +26,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -67,7 +68,9 @@ public abstract class AnnotationUtils {
 	/** The attribute name for annotations with a single element */
 	public static final String VALUE = "value";
 
-	private static Map<Class, Annotation[]> classDeclaredAnnotations = new ConcurrentReferenceHashMap<Class, Annotation[]>(256);
+	private static ConcurrentMap<Class, Annotation[]> classDeclaredAnnotations = new ConcurrentReferenceHashMap<Class, Annotation[]>(256);
+	private static ConcurrentMap<Class, Class[]> classInterfaces = new ConcurrentReferenceHashMap<Class, Class[]>(256);
+	private static ConcurrentMap<Method, Class[]> methodParameterTypes = new ConcurrentReferenceHashMap<Method, Class[]>(256);
 
 	private static final Map<AnnotationCacheKey, Annotation> findAnnotationCache =
 			new ConcurrentReferenceHashMap<AnnotationCacheKey, Annotation>(256);
@@ -243,7 +246,7 @@ public abstract class AnnotationUtils {
 			result = getAnnotation(method, annotationType);
 			Class<?> clazz = method.getDeclaringClass();
 			if (result == null) {
-				result = searchOnInterfaces(method, annotationType, clazz.getInterfaces());
+				result = searchOnInterfaces(method, annotationType, getInterfaces(clazz));
 			}
 			while (result == null) {
 				clazz = clazz.getSuperclass();
@@ -251,14 +254,14 @@ public abstract class AnnotationUtils {
 					break;
 				}
 				try {
-					Method equivalentMethod = clazz.getDeclaredMethod(method.getName(), method.getParameterTypes());
+					Method equivalentMethod = clazz.getDeclaredMethod(method.getName(), getMethodParameterTypes(method));
 					result = getAnnotation(equivalentMethod, annotationType);
 				}
 				catch (NoSuchMethodException ex) {
 					// No equivalent method found
 				}
 				if (result == null) {
-					result = searchOnInterfaces(method, annotationType, clazz.getInterfaces());
+					result = searchOnInterfaces(method, annotationType, getInterfaces(clazz));
 				}
 			}
 			if (result != null) {
@@ -273,7 +276,7 @@ public abstract class AnnotationUtils {
 		for (Class<?> iface : ifcs) {
 			if (isInterfaceWithAnnotatedMethods(iface)) {
 				try {
-					Method equivalentMethod = iface.getMethod(method.getName(), method.getParameterTypes());
+					Method equivalentMethod = iface.getMethod(method.getName(), getMethodParameterTypes(method));
 					annotation = getAnnotation(equivalentMethod, annotationType);
 				}
 				catch (NoSuchMethodException ex) {
@@ -379,7 +382,7 @@ public abstract class AnnotationUtils {
 			return null;
 		}
 
-		for (Class<?> ifc : clazz.getInterfaces()) {
+		for (Class<?> ifc : getInterfaces(clazz)) {
 			A annotation = findAnnotation(ifc, annotationType, visited);
 			if (annotation != null) {
 				return annotation;
@@ -582,7 +585,7 @@ public abstract class AnnotationUtils {
 		AnnotationAttributes attrs = new AnnotationAttributes();
 		Method[] methods = annotation.annotationType().getDeclaredMethods();
 		for (Method method : methods) {
-			if (method.getParameterTypes().length == 0 && method.getReturnType() != void.class) {
+			if (getMethodParameterTypes(method).length == 0 && method.getReturnType() != void.class) {
 				try {
 					Object value = method.invoke(annotation);
 					attrs.put(method.getName(), adaptValue(value, classValuesAsString, nestedAnnotationsAsMap));
@@ -834,4 +837,19 @@ public abstract class AnnotationUtils {
 		return arr;
 	}
 
+	public static Class<?>[] getInterfaces(Class clazz) {
+//        return clazz.getInterfaces();
+		Class[] arr = classInterfaces.get(clazz);
+		if (arr == null)
+			arr = ReflectionUtils.cache(classInterfaces, clazz, clazz.getInterfaces());
+		return arr;
+	}
+
+	public static Class<?>[] getMethodParameterTypes(Method method) {
+//        return method.getParameterTypes();
+		Class[] arr = methodParameterTypes.get(method);
+		if (arr == null)
+			arr = ReflectionUtils.cache(methodParameterTypes, method, method.getParameterTypes());
+		return arr;
+	}
 }
